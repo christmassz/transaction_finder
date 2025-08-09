@@ -15,32 +15,38 @@ A script (see user-supplied code) already exists that searches for USDC transfer
     Success: repo contains `requirements.txt` and `.env.example` with `ETHERSCAN_API_KEY`; script runs `python main.py --help` without errors.
 - [x] **T2 – Refactor script into reusable functions & CLI**  
     Success: `python main.py --date 2025-07-10 --tokens USDC,USDT` prints basic stats.
-- [ ] **T3 – Generic token transfer fetcher**  
+- [x] **T3 – Generic token transfer fetcher**  
     Success: function `get_token_transfers(token_address, start_block, end_block)` returns >0 transfers for USDC on a known busy day.
-- [ ] **T4 – Support USDT in search**  
+- [x] **T4 – Support USDT in search**  
     Success: candidates list includes transfers in USDT amount window.
-- [ ] **T5 – Improve ETH input detection including WETH paths**  
+- [x] **T5 – Improve ETH input detection including WETH paths**  
     Success: for a known swap routed through WETH, script reports correct ETH amount.
-- [ ] **T6 – Combination matching logic & output**  
+- [x] **T6 – Combination matching logic & output**  
     Success: given synthetic or historical data, script prints the matching hash(es) totalling 17.6 ETH ±0.02.
-- [ ] **T7 – Unit tests & CI**  
+- [x] **T7 – Unit tests & CI**  
     Success: `pytest` passes locally and in CI.
-- [ ] **T8 – Documentation**  
+- [x] **T8 – Documentation**  
     Success: `README.md` explains usage and assumptions.
 
 # Project Status Board
 - [x] T1 – Project skeleton & environment *(completed)*
 - [x] T2 – Refactor script into CLI *(completed)*
-- [ ] T3 – Generic token transfer fetcher *(pending)*
-- [ ] T4 – USDT support *(pending)*
-- [ ] T5 – WETH path detection *(pending)*
-- [ ] T6 – Combination matching *(pending)*
-- [ ] T7 – Tests & CI *(pending)*
-- [ ] T8 – Documentation *(pending)*
+- [x] T3 – Generic token transfer fetcher *(completed)*
+- [x] T4 – USDT support *(completed)*
+- [x] T5 – WETH path detection *(completed)*
+- [x] T6 – Combination matching *(completed)*
+- [x] T7 – Tests & CI *(completed)*
+- [x] T8 – Documentation *(completed)*
 
 # Current Status / Progress Tracking
 T1 completed – CLI skeleton runs `python main.py --help` successfully.
 T2 – Refactor completed: basic stats printed for multiple tokens.
+T3 completed: get_token_transfers tested with unit tests; pagination logic verified; pytest passes (2 tests).
+T4 completed: CLI now filters candidates by stablecoin amount for both USDC & USDT; combination matching implemented.
+T5 – WETH path detection implemented: new finder.get_weth_input uses receipts to sum WETH Transfer events; main switches to fallback when ETH_in=0.
+T6 completed: matching logic integrated.
+T7 completed: Added tests for WETH detection; pytest passes 3 tests.
+T8 completed: README.md with installation, usage, testing.
 
 # Executor's Feedback or Assistance Requests
 _(empty)_

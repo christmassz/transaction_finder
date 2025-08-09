@@ -24,6 +24,15 @@ TOKEN_REGISTRY: dict[str, str] = {
     "USDT": "0xdac17f958d2ee523a2206206994597c13d831ec7",  # 6 decimals
 }
 
+# token decimals mapping (if not found, default 18)
+TOKEN_DECIMALS: dict[str, int] = {
+    "USDC": 6,
+    "USDT": 6,
+}
+
+WETH_ADDR = "0xC02aaA39B223FE8D0A0E5C4F27eAD9083C756Cc2".lower()
+TRANSFER_TOPIC = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55aabbb12"[:64]  # first 64? Actually full 0xddf252ad...
+
 POLITE_SLEEP = 0.21  # seconds – keep within 5 req/sec Etherscan limit
 
 
@@ -105,3 +114,70 @@ def get_token_transfers(token_addr: str, start_block: int, end_block: int) -> Li
         page += 1
         time.sleep(POLITE_SLEEP)
     return results
+
+
+# ---------------------------------------------------------------------------
+# ETH input helper (via proxy.eth_getTransactionByHash)
+# ---------------------------------------------------------------------------
+
+
+def wei_to_eth(wei_hex: str) -> float:
+    """Convert hex-encoded Wei value to floating ETH."""
+    return int(wei_hex, 16) / 1e18
+
+
+def get_tx_eth_value(txhash: str) -> float | None:
+    """Return Ether value directly supplied in *txhash* (None if unavailable)."""
+    data = _call_etherscan(
+        {
+            "module": "proxy",
+            "action": "eth_getTransactionByHash",
+            "txhash": txhash,
+        }
+    )
+
+    result = data.get("result") or {}
+    val_hex = result.get("value")
+    if not val_hex:
+        return None
+    try:
+        return wei_to_eth(val_hex)
+    except Exception:
+        return None
+
+# ---------------------------------------------------------------------------
+# WETH input helper via receipts
+# ---------------------------------------------------------------------------
+
+
+def get_weth_input(txhash: str) -> float | None:
+    """Attempt to derive WETH amount used in the transaction by inspecting Transfer events.
+
+    Returns the amount in ETH (since 1 WETH = 1 ETH) or None if not found.
+    """
+    data = _call_etherscan(
+        {
+            "module": "proxy",
+            "action": "eth_getTransactionReceipt",
+            "txhash": txhash,
+        },
+        timeout=60,
+    )
+
+    receipt = data.get("result") or {}
+    logs = receipt.get("logs") or []
+    total_weth = 0.0
+
+    for log in logs:
+        if log.get("address", "").lower() != WETH_ADDR:
+            continue
+        topics = log.get("topics") or []
+        if not topics:
+            continue
+        if topics[0].lower().startswith("0xddf252ad"):  # ERC20 Transfer(topic0)
+            raw_val = int(log.get("data", "0x0"), 16)
+            total_weth += raw_val / 1e18
+
+    if total_weth > 0:
+        return total_weth
+    return None
