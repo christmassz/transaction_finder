@@ -224,6 +224,12 @@ ROUTER_ADDRS: set[str] = {
     "0xdef1c0ded9bec7f1a1670819833240f027b25eff",
     # 1inch Aggregation Router v5
     "0x1111111254fb6c44bac0bed2854e76f90643097d",
+    # 1inch Aggregation Router v6
+    "0x11111112542d85b3ef69ae05771c2dccff4faa26",
+    # CoW Swap GPv2 Settlement
+    "0x9008d19f58aabd9ed0d60971565aa8510560ab41",
+    # Uniswap V3 Universal Router
+    "0xef1c6e67703c7bd7107eed8303fbe6ec2554bf6b",
 }
 
 

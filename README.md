@@ -28,13 +28,14 @@ python main.py \
   --tokens USDC,USDT \
   --eth 17.6 \
   --stable-amount 52800 \
-  --stable-pct-tol 2 \
+  --stable-pct-tol 5 \
+  --hours-window 48 \
   --eth-tol 0.02 \
   --require-router \
   --blocklist mev_blocklist.txt \
   --json-file results.json
 ```
 
-* `--require-router` ensures the stablecoin transfer involves a known DEX router address (Uniswap, Sushi, 0x, 1inch), increasing confidence that it was a swap rather than a simple transfer.
+* `--require-router` ensures the stablecoin transfer involves a known DEX router address (Uniswap, Sushi, 0x, 1inch, CoW Swap), increasing confidence that it was a swap rather than a simple transfer.
 
 * `mev_blocklist.txt` should contain one address per line (lower- or mixed-case). Any transfer whose `

@@ -92,6 +92,13 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Only consider token transfers where from or to address is a known DEX router (swap).",
     )
+    parser.add_argument(
+        "--hours-window",
+        type=int,
+        default=24,
+        metavar="H",
+        help="Number of hours (centered on --date) to include in search window (default 24). For 48h use 48.",
+    )
     return parser.parse_args()
 
 
@@ -136,8 +143,12 @@ def main() -> None:
     lo = args.stable_amount * (1 - args.stable_pct_tol / 100)
     hi = args.stable_amount * (1 + args.stable_pct_tol / 100)
 
-    start_ts = finder.ts(args.date, "00:00:00")
-    end_ts = finder.ts(args.date, "23:59:59")
+    # Compute time window around the provided date covering hours_window
+    center_start = finder.ts(args.date, "00:00:00")
+    window_secs = args.hours_window * 3600
+    start_ts = center_start - (window_secs // 2)
+    end_ts = center_start + 24*3600 + (window_secs // 2) - 1 if args.hours_window > 24 else center_start + window_secs - 1
+
     start_block = finder.get_block_by_time(start_ts, "before")
     end_block = finder.get_block_by_time(end_ts, "after")
 
@@ -180,6 +191,7 @@ def main() -> None:
                         "sym": sym,
                         "hash": t["hash"],
                         "time": int(t["timeStamp"]),
+                        "time_iso": datetime.fromtimestamp(int(t["timeStamp"]), tz=timezone.utc).isoformat(),
                         "usdc": amount,
                         "from": frm,
                         "to": to_addr,
@@ -248,6 +260,8 @@ def main() -> None:
     # ------------------------------------------------------------------
     # Optional JSON output
     # ------------------------------------------------------------------
+    json_path: Path | None = None
+
     if args.json_file:
         out = {
             "date": args.date,
@@ -260,9 +274,26 @@ def main() -> None:
             "matches": matches,
             "blocklist": list(block_set),
         }
-        p = Path(args.json_file).expanduser().resolve()
-        p.write_text(json.dumps(out, indent=2))
-        print(f"\n[✓] JSON results written to {p}")
+        json_path = Path(args.json_file).expanduser().resolve()
+    else:
+        # Auto-generate filename
+        ts_str = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        json_path = Path(f"results_{args.date}_{ts_str}.json").resolve()
+    if json_path:
+        out = {
+            "run_utc": datetime.now(timezone.utc).isoformat(),
+            "date": args.date,
+            "tokens": token_list,
+            "stable_amount": args.stable_amount,
+            "stable_pct_tol": args.stable_pct_tol,
+            "eth": args.eth,
+            "eth_tol": args.eth_tol,
+            "candidates": candidates,
+            "matches": matches,
+            "blocklist": list(block_set),
+        }
+        json_path.write_text(json.dumps(out, indent=2))
+        print(f"\n[✓] JSON results written to {json_path}")
 
 
 if __name__ == "__main__":
