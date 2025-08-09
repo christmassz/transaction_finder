@@ -10,7 +10,9 @@ import argparse
 import os
 from datetime import datetime, timezone
 import time
-from typing import List
+import json
+from pathlib import Path
+from typing import List, Set
 
 from dotenv import load_dotenv
 
@@ -69,6 +71,22 @@ def parse_args() -> argparse.Namespace:
         default=3,
         help="Maximum number of transactions to combine when matching ETH total (default 3)",
     )
+    parser.add_argument(
+        "--json-file",
+        type=str,
+        help="Optional path to write detailed results as JSON. If omitted, no JSON file is written.",
+    )
+    parser.add_argument(
+        "--blocklist",
+        type=str,
+        help="Optional path to a text file with addresses (one per line) to exclude (e.g., MEV bots)",
+    )
+    parser.add_argument(
+        "--mev-lookback",
+        type=int,
+        default=10,
+        help="How many recent tx to inspect for MEV activity on candidate sender address (default 10)",
+    )
     return parser.parse_args()
 
 
@@ -120,6 +138,18 @@ def main() -> None:
 
     candidates: list[dict] = []
 
+    def load_blocklist(path: str | None) -> Set[str]:
+        if not path:
+            return set()
+        pth = Path(path).expanduser()
+        if not pth.is_file():
+            print(f"[!] Warning: blocklist file '{pth}' not found. Ignoring.")
+            return set()
+        lines = [ln.strip().lower() for ln in pth.read_text().splitlines() if ln.strip()]
+        return set(lines)
+
+    block_set = load_blocklist(args.blocklist)
+
     for sym in token_list:
         addr = finder.TOKEN_REGISTRY.get(sym.upper())
         if not addr:
@@ -127,6 +157,9 @@ def main() -> None:
         transfers = finder.get_token_transfers(addr, start_block, end_block)
         decimals = finder.TOKEN_DECIMALS.get(sym.upper(), 18)
         for t in transfers:
+            # Exclude if from/to in blocklist
+            if block_set and (t.get("from", "").lower() in block_set or t.get("to", "").lower() in block_set):
+                continue
             amount = int(t["value"]) / (10 ** decimals)
             if lo <= amount <= hi:
                 candidates.append(
@@ -135,6 +168,8 @@ def main() -> None:
                         "hash": t["hash"],
                         "time": int(t["timeStamp"]),
                         "usdc": amount,
+                        "from": t["from"],
+                        "to": t["to"],
                         "eth_in": None,
                     }
                 )
@@ -174,6 +209,47 @@ def main() -> None:
         print(f"* Total ETH_in={total:.6f} across {len(hashes)} tx:")
         for h in hashes:
             print(f"  - {h}")
+
+    # ------------------------------------------------------------------
+    # MEV lookback analysis for match senders
+    # ------------------------------------------------------------------
+    if matches and block_set:
+        print("\nMEV lookback analysis (sender addresses):")
+        for _, hash_list in matches:
+            for h in hash_list:
+                cand = next((c for c in candidates if c["hash"] == h), None)
+                if not cand:
+                    continue
+                sender = cand["from"].lower()
+                dest = cand["to"].lower()
+                direct_flag = dest in block_set
+                lookback_flag = finder.has_recent_mev_activity(sender, block_set, args.mev_lookback)
+                status_parts = []
+                if direct_flag:
+                    status_parts.append("dest-is-MEV")
+                if lookback_flag:
+                    status_parts.append("sender-history-MEV")
+                status = " & ".join(status_parts) if status_parts else "clean"
+                print(f"- {h}  sender {sender[:6]}…{sender[-4:]} -> dest {dest[:6]}…{dest[-4:]} : {status}")
+
+    # ------------------------------------------------------------------
+    # Optional JSON output
+    # ------------------------------------------------------------------
+    if args.json_file:
+        out = {
+            "date": args.date,
+            "tokens": token_list,
+            "stable_amount": args.stable_amount,
+            "stable_pct_tol": args.stable_pct_tol,
+            "eth": args.eth,
+            "eth_tol": args.eth_tol,
+            "candidates": candidates,
+            "matches": matches,
+            "blocklist": list(block_set),
+        }
+        p = Path(args.json_file).expanduser().resolve()
+        p.write_text(json.dumps(out, indent=2))
+        print(f"\n[✓] JSON results written to {p}")
 
 
 if __name__ == "__main__":

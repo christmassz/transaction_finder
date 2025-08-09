@@ -29,8 +29,12 @@ python main.py \
   --eth 17.6 \
   --stable-amount 52800 \
   --stable-pct-tol 2 \
-  --eth-tol 0.02
+  --eth-tol 0.02 \
+  --blocklist mev_blocklist.txt \
+  --json-file results.json
 ```
+
+* `mev_blocklist.txt` should contain one address per line (lower- or mixed-case). Any transfer whose `from` **or** `to` address is on the list will be skipped.
 
 ## Testing
 ```bash

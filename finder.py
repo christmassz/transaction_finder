@@ -181,3 +181,32 @@ def get_weth_input(txhash: str) -> float | None:
     if total_weth > 0:
         return total_weth
     return None
+
+# ---------------------------------------------------------------------------
+# Address analysis helpers
+# ---------------------------------------------------------------------------
+
+
+def recent_tx_addresses(addr: str, count: int = 10) -> list[dict[str, Any]]:
+    """Return up to *count* most recent transactions involving *addr* (EOA or contract)."""
+    data = _call_etherscan(
+        {
+            "module": "account",
+            "action": "txlist",
+            "address": addr,
+            "page": 1,
+            "offset": count,
+            "sort": "desc",
+        },
+        timeout=60,
+    )
+    return data.get("result", []) or []
+
+
+def has_recent_mev_activity(addr: str, block_set: set[str], lookback: int = 10) -> bool:
+    """Return True if any of the last *lookback* tx involve a known MEV address in *block_set*."""
+    txs = recent_tx_addresses(addr, lookback)
+    for tx in txs:
+        if tx.get("from", "").lower() in block_set or tx.get("to", "").lower() in block_set:
+            return True
+    return False
