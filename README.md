@@ -30,13 +30,11 @@ python main.py \
   --stable-amount 52800 \
   --stable-pct-tol 2 \
   --eth-tol 0.02 \
+  --require-router \
   --blocklist mev_blocklist.txt \
   --json-file results.json
 ```
 
-* `mev_blocklist.txt` should contain one address per line (lower- or mixed-case). Any transfer whose `from` **or** `to` address is on the list will be skipped.
+* `--require-router` ensures the stablecoin transfer involves a known DEX router address (Uniswap, Sushi, 0x, 1inch), increasing confidence that it was a swap rather than a simple transfer.
 
-## Testing
-```bash
-pytest -q  # runs unit tests
-```
+* `mev_blocklist.txt` should contain one address per line (lower- or mixed-case). Any transfer whose `

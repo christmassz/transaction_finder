@@ -210,3 +210,22 @@ def has_recent_mev_activity(addr: str, block_set: set[str], lookback: int = 10) 
         if tx.get("from", "").lower() in block_set or tx.get("to", "").lower() in block_set:
             return True
     return False
+
+# Known DEX router addresses (mainnet, lowercase)
+ROUTER_ADDRS: set[str] = {
+    # Uniswap V2 Router
+    "0x7a250d5630b4cf539739df2c5dacab4c659f2488",
+    # Uniswap V3 routers
+    "0xe592427a0aece92de3eedee1f18e0157c05861564",
+    "0x68b3465833fb72a70ecdf485e0e4c7bd8665fc45",
+    # SushiSwap Router
+    "0xd9e1ce17f2641f24ae83637ab66a2cca9c378b9f",
+    # 0x Exchange Proxy
+    "0xdef1c0ded9bec7f1a1670819833240f027b25eff",
+    # 1inch Aggregation Router v5
+    "0x1111111254fb6c44bac0bed2854e76f90643097d",
+}
+
+
+def is_router(addr: str) -> bool:
+    return addr.lower() in ROUTER_ADDRS

@@ -87,6 +87,11 @@ def parse_args() -> argparse.Namespace:
         default=10,
         help="How many recent tx to inspect for MEV activity on candidate sender address (default 10)",
     )
+    parser.add_argument(
+        "--require-router",
+        action="store_true",
+        help="Only consider token transfers where from or to address is a known DEX router (swap).",
+    )
     return parser.parse_args()
 
 
@@ -157,9 +162,17 @@ def main() -> None:
         transfers = finder.get_token_transfers(addr, start_block, end_block)
         decimals = finder.TOKEN_DECIMALS.get(sym.upper(), 18)
         for t in transfers:
-            # Exclude if from/to in blocklist
-            if block_set and (t.get("from", "").lower() in block_set or t.get("to", "").lower() in block_set):
+            frm = t.get("from", "").lower()
+            to_addr = t.get("to", "").lower()
+
+            # Skip if MEV blocklisted
+            if block_set and (frm in block_set or to_addr in block_set):
                 continue
+
+            # If require-router, ensure one side is router
+            if args.require_router and not (finder.is_router(frm) or finder.is_router(to_addr)):
+                continue
+
             amount = int(t["value"]) / (10 ** decimals)
             if lo <= amount <= hi:
                 candidates.append(
@@ -168,8 +181,8 @@ def main() -> None:
                         "hash": t["hash"],
                         "time": int(t["timeStamp"]),
                         "usdc": amount,
-                        "from": t["from"],
-                        "to": t["to"],
+                        "from": frm,
+                        "to": to_addr,
                         "eth_in": None,
                     }
                 )
