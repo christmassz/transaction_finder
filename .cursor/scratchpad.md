@@ -54,3 +54,8 @@ _(empty)_
 
 # Lessons
 _(empty)_
+
+## Experiment log
+- E1: Router-only, 48h window, max-combo=1 → no 17.6 ETH match.
+- E2: Increase max-combo to 3 → no match.
+- E3: Add Balancer, Curve, Kyber routers; keep max-combo=3.

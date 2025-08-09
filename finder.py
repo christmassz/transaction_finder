@@ -244,6 +244,12 @@ ROUTER_ADDRS: set[str] = {
     "0x9008d19f58aabd9ed0d60971565aa8510560ab41",
     # Uniswap V3 Universal Router
     "0xef1c6e67703c7bd7107eed8303fbe6ec2554bf6b",
+    # Balancer V2 Vault (acts as router for swaps)
+    "0xba12222222228d8ba445958a75a0704d566bf2c8",
+    # Curve V2 Router (crypto swaps)
+    "0xf6a4b1bb5ac45e4d3ab33be1284626055310976d",
+    # KyberSwap Aggregation Router
+    "0xdef171fe48cf0115b1d80b88dc8eab59176fee57",
 }
 
 
