@@ -47,6 +47,7 @@ T5 – WETH path detection implemented: new finder.get_weth_input uses receipts 
 T6 completed: matching logic integrated.
 T7 completed: Added tests for WETH detection; pytest passes 3 tests.
 T8 completed: README.md with installation, usage, testing.
+T6+ updates: Added multi-day search (--start-date/--end-date), extended router list (1inch v6, Uniswap Universal), WETH-into-router exact filtering to find 17.6 ETH swaps.
 
 # Executor's Feedback or Assistance Requests
 _(empty)_

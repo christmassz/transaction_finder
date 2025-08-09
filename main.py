@@ -27,9 +27,18 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--date",
-        required=True,
         metavar="YYYY-MM-DD",
-        help="Target UTC date to search (e.g. 2025-07-10)",
+        help="Single UTC date to search (e.g. 2025-07-10). Ignored if --start-date is given.",
+    )
+    parser.add_argument(
+        "--start-date",
+        metavar="YYYY-MM-DD",
+        help="Start UTC date for multi-day search window.",
+    )
+    parser.add_argument(
+        "--end-date",
+        metavar="YYYY-MM-DD",
+        help="End UTC date (inclusive) for multi-day search window.",
     )
     parser.add_argument(
         "--tokens",
@@ -137,17 +146,29 @@ def main() -> None:
 
     # Placeholder behaviour – will be replaced in later tasks
     token_list = [t.strip().upper() for t in args.tokens.split(",") if t.strip()]
-    basic_stats(args.date, token_list)
+    if args.date and not args.start_date:
+        basic_stats(args.date, token_list)
+    else:
+        print(f"Searching block range covering {args.start_date} to {args.end_date}\n")
 
     # Candidate search
     lo = args.stable_amount * (1 - args.stable_pct_tol / 100)
     hi = args.stable_amount * (1 + args.stable_pct_tol / 100)
 
-    # Compute time window around the provided date covering hours_window
-    center_start = finder.ts(args.date, "00:00:00")
-    window_secs = args.hours_window * 3600
-    start_ts = center_start - (window_secs // 2)
-    end_ts = center_start + 24*3600 + (window_secs // 2) - 1 if args.hours_window > 24 else center_start + window_secs - 1
+    if args.start_date and args.end_date:
+        start_ts = finder.ts(args.start_date, "00:00:00")
+        end_ts = finder.ts(args.end_date, "23:59:59")
+    elif args.date:
+        center_start = finder.ts(args.date, "00:00:00")
+        window_secs = args.hours_window * 3600
+        half = window_secs // 2
+        start_ts = center_start - half
+        end_ts = center_start + 24*3600 + half - 1 if args.hours_window > 24 else center_start + half - 1
+    else:
+        raise SystemExit("Provide either --date or both --start-date and --end-date")
+
+    # For reporting
+    search_window_desc = f"{datetime.fromtimestamp(start_ts, tz=timezone.utc).isoformat()} .. {datetime.fromtimestamp(end_ts, tz=timezone.utc).isoformat()}"
 
     start_block = finder.get_block_by_time(start_ts, "before")
     end_block = finder.get_block_by_time(end_ts, "after")
@@ -205,8 +226,9 @@ def main() -> None:
     for cand in candidates:
         val = finder.get_tx_eth_value(cand["hash"])
         if not val or val == 0:
-            # Try WETH path detection
-            val = finder.get_weth_input(cand["hash"])
+            # Identify router side
+            router_addr = cand["from"] if finder.is_router(cand["from"]) else cand["to"]
+            val = finder.get_weth_input_into(cand["hash"], router_addr)
         cand["eth_in"] = val
         time.sleep(finder.POLITE_SLEEP)
 

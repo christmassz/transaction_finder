@@ -1,0 +1,46 @@
+{
+  "run_utc": "2025-08-09T09:57:13.143867+00:00",
+  "date": "2025-07-10",
+  "tokens": [
+    "USDC",
+    "USDT"
+  ],
+  "stable_amount": 52800.0,
+  "stable_pct_tol": 5.0,
+  "eth": 17.6,
+  "eth_tol": 0.02,
+  "candidates": [
+    {
+      "sym": "USDC",
+      "hash": "0x873db2fe6c73df095998da6edce54acef80ccd61637d34744ff4f50114658a0c",
+      "time": 1752021911,
+      "time_iso": "2025-07-09T00:45:11+00:00",
+      "usdc": 54500.0,
+      "from": "0x9008d19f58aabd9ed0d60971565aa8510560ab41",
+      "to": "0x9a772018fbd77fcd2d25657e5c547baff3fd7d16",
+      "eth_in": null
+    },
+    {
+      "sym": "USDT",
+      "hash": "0xcd1f9e5ebc426aca88ec2e4211d4852d138ffc87edd58b6b4e63fcf749dca46b",
+      "time": 1752021383,
+      "time_iso": "2025-07-09T00:36:23+00:00",
+      "usdc": 53852.263132,
+      "from": "0x51c72848c68a965f66fa7a88855f9f7784502a7f",
+      "to": "0x9008d19f58aabd9ed0d60971565aa8510560ab41",
+      "eth_in": null
+    },
+    {
+      "sym": "USDT",
+      "hash": "0xcd1f9e5ebc426aca88ec2e4211d4852d138ffc87edd58b6b4e63fcf749dca46b",
+      "time": 1752021383,
+      "time_iso": "2025-07-09T00:36:23+00:00",
+      "usdc": 53704.691654,
+      "from": "0x9008d19f58aabd9ed0d60971565aa8510560ab41",
+      "to": "0x578e2321860533ce8294d89c3650bf39fd75cd11",
+      "eth_in": null
+    }
+  ],
+  "matches": [],
+  "blocklist": []
+}

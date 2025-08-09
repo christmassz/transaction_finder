@@ -150,10 +150,17 @@ def get_tx_eth_value(txhash: str) -> float | None:
 # ---------------------------------------------------------------------------
 
 
-def get_weth_input(txhash: str) -> float | None:
-    """Attempt to derive WETH amount used in the transaction by inspecting Transfer events.
+def _topic_to_addr(topic_hex: str) -> str:
+    """Extract the 20-byte address from a 32-byte topic hex string."""
+    if topic_hex.startswith("0x"):
+        topic_hex = topic_hex[2:]
+    return "0x" + topic_hex[-40:]
 
-    Returns the amount in ETH (since 1 WETH = 1 ETH) or None if not found.
+
+def get_weth_input_into(txhash: str, router_addr: str) -> float | None:
+    """Sum the WETH transferred *into* `router_addr` within `txhash`.
+
+    Returns amount in ETH or None if no such transfer.
     """
     data = _call_etherscan(
         {
@@ -166,20 +173,27 @@ def get_weth_input(txhash: str) -> float | None:
 
     receipt = data.get("result") or {}
     logs = receipt.get("logs") or []
-    total_weth = 0.0
+    weth_in = 0.0
+    router_addr = router_addr.lower()
 
     for log in logs:
         if log.get("address", "").lower() != WETH_ADDR:
             continue
         topics = log.get("topics") or []
-        if not topics:
+        if len(topics) < 3:
             continue
-        if topics[0].lower().startswith("0xddf252ad"):  # ERC20 Transfer(topic0)
-            raw_val = int(log.get("data", "0x0"), 16)
-            total_weth += raw_val / 1e18
+        if not topics[0].lower().startswith("0xddf252ad"):
+            continue  # not Transfer
 
-    if total_weth > 0:
-        return total_weth
+        to_addr = _topic_to_addr(topics[2]).lower()
+        if to_addr != router_addr:
+            continue
+
+        raw_val = int(log.get("data", "0x0"), 16)
+        weth_in += raw_val / 1e18
+
+    if weth_in > 0:
+        return weth_in
     return None
 
 # ---------------------------------------------------------------------------
