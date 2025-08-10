@@ -1,1 +1,3 @@
 .env
+# Service-account credentials
+infra-falcon-468603-*.json
