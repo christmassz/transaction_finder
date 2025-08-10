@@ -30,10 +30,10 @@ def parse_args() -> argparse.Namespace:
     return p.parse_args()
 
 
-def build_query(start: str, end: str, target_wei: int, tol_wei: int) -> str:
+def build_query(start: str, end: str, target_eth: float, tol_eth: float) -> str:
     return f"""
-    DECLARE target_wei INT64 DEFAULT {target_wei};
-    DECLARE tol_wei    INT64 DEFAULT {tol_wei};
+    DECLARE target_eth FLOAT64 DEFAULT {target_eth};
+    DECLARE tol_eth    FLOAT64 DEFAULT {tol_eth};
     SELECT
       block_number,
       block_timestamp,
@@ -44,7 +44,7 @@ def build_query(start: str, end: str, target_wei: int, tol_wei: int) -> str:
     FROM `bigquery-public-data.crypto_ethereum.transactions`
     WHERE
       block_timestamp BETWEEN '{start} 00:00:00' AND '{end} 23:59:59'
-      AND ABS(value - target_wei) <= tol_wei
+      AND ABS(value / 1e18 - target_eth) <= tol_eth
     ORDER BY block_timestamp;
     """
 
@@ -58,15 +58,15 @@ def main() -> None:
     args = parse_args()
     target = Decimal(str(args.eth))
     tol = Decimal(str(args.tol))
-    target_wei = int(target * Decimal(1e18))
-    tol_wei = int(tol * Decimal(1e18))
+    target_eth_f = float(target)
+    tol_eth_f = float(tol)
 
     creds = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
     if not creds or not Path(creds).is_file():
         raise SystemExit("GOOGLE_APPLICATION_CREDENTIALS not set or file missing.")
 
     client = bigquery.Client()
-    sql = build_query(args.start, args.end, target_wei, tol_wei)
+    sql = build_query(args.start, args.end, target_eth_f, tol_eth_f)
     print("Running BigQuery… this may take a minute…")
     rows = run_query(client, sql)
     print(f"Rows returned: {len(rows)}")

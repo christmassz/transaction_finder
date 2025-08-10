@@ -39,3 +39,28 @@ python main.py \
 * `--require-router` ensures the stablecoin transfer involves a known DEX router address (Uniswap, Sushi, 0x, 1inch, CoW Swap), increasing confidence that it was a swap rather than a simple transfer.
 
 * `mev_blocklist.txt` should contain one address per line (lower- or mixed-case). Any transfer whose `
+
+## BigQuery (full ETH transfer search)
+This repo ships a helper script `bigquery_search.py` that queries the public Ethereum dataset on Google BigQuery for raw ETH transfers of a specific amount.
+
+Prerequisites:
+1. A Google Cloud project with BigQuery enabled (free tier is fine).
+2. A service-account JSON key.  Set the path in your `.env`:
+   ```ini
+   GOOGLE_APPLICATION_CREDENTIALS=/absolute/path/your_key.json
+   ```
+3. Install extra dependency:
+   ```bash
+   pip install -r requirements.txt  # installs google-cloud-bigquery
+   ```
+
+Example search for 17.6 ETH transfers between 6 → 20 July 2025 (tolerance ±1 µETH):
+```bash
+python bigquery_search.py \
+  --start 2025-07-06 \
+  --end   2025-07-20 \
+  --eth   17.6 \
+  --tol   0.000001 \
+  --out   bigquery_17_6.json
+```
+The script writes JSON with all matching rows; adjust `--tol` or date range as needed.
