@@ -11,14 +11,12 @@ import os
 from datetime import datetime, timezone
 import time
 import json
+from decimal import Decimal
 from pathlib import Path
 from typing import List, Set
 
 from dotenv import load_dotenv
-
-import finder  # local module
-
-# Load environment variables from a local .env file, if present
+import finder
 load_dotenv()
 
 def parse_args() -> argparse.Namespace:
@@ -108,6 +106,16 @@ def parse_args() -> argparse.Namespace:
         metavar="H",
         help="Number of hours (centered on --date) to include in search window (default 24). For 48h use 48.",
     )
+    parser.add_argument(
+        "--eth-only",
+        action="store_true",
+        help="Search purely for WETH transfers equal to --eth (in ETH) and ignore stable filters.",
+    )
+    parser.add_argument(
+        "--deposit-search",
+        action="store_true",
+        help="Scan ETH value deposits into WETH contract equal to --eth (within tolerance).",
+    )
     return parser.parse_args()
 
 
@@ -133,10 +141,8 @@ def basic_stats(date_str: str, token_syms: List[str]) -> None:
 
 
 def main() -> None:
-    # argparse handles --help automatically (prints help and exits).
     args = parse_args()
 
-    # Basic environment validation (skipped when --help exits early)
     api_key = os.getenv("ETHERSCAN_API_KEY")
     if not api_key:
         raise SystemExit(
@@ -144,7 +150,6 @@ def main() -> None:
             "Create a .env file (see .env.example) or export it in your shell."
         )
 
-    # Placeholder behaviour – will be replaced in later tasks
     token_list = [t.strip().upper() for t in args.tokens.split(",") if t.strip()]
     if args.date and not args.start_date:
         basic_stats(args.date, token_list)
@@ -167,7 +172,6 @@ def main() -> None:
     else:
         raise SystemExit("Provide either --date or both --start-date and --end-date")
 
-    # For reporting
     search_window_desc = f"{datetime.fromtimestamp(start_ts, tz=timezone.utc).isoformat()} .. {datetime.fromtimestamp(end_ts, tz=timezone.utc).isoformat()}"
 
     start_block = finder.get_block_by_time(start_ts, "before")
@@ -187,6 +191,92 @@ def main() -> None:
 
     block_set = load_blocklist(args.blocklist)
 
+    target_eth = Decimal(str(args.eth))
+    eth_tol = Decimal(str(args.eth_tol))
+
+    if args.eth_only:
+        print("\n[ETH-only mode] Searching WETH transfers for exact ETH amount…")
+        weth_transfers = finder.get_token_transfers(finder.WETH_ADDR, start_block, end_block)
+        candidates = []
+        for t in weth_transfers:
+            val_eth = Decimal(int(t["value"])) / Decimal(1e18)
+            if abs(val_eth - target_eth) <= eth_tol:
+                candidates.append(
+                    {
+                        "hash": t["hash"],
+                        "time": int(t["timeStamp"]),
+                        "time_iso": datetime.fromtimestamp(int(t["timeStamp"]), tz=timezone.utc).isoformat(),
+                        "from": t["from"].lower(),
+                        "to": t["to"].lower(),
+                        "eth": float(val_eth),
+                    }
+                )
+
+        print(f"Found {len(candidates)} exact-match transfers. Now searching combinations per sender up to {args.max_combo} tx…")
+
+        from collections import defaultdict
+        import itertools
+
+        combos: list[dict] = []
+        by_sender: dict[str, list[dict]] = defaultdict(list)
+        for c in candidates:
+            by_sender[c["from"]].append(c)
+
+        for sender, txs in by_sender.items():
+            for r in range(1, min(args.max_combo, len(txs)) + 1):
+                for combo in itertools.combinations(txs, r):
+                    total = sum(Decimal(str(t["eth"])) for t in combo)
+                    if abs(total - target_eth) <= eth_tol:
+                        combos.append({
+                            "sender": sender,
+                            "total_eth": float(total),
+                            "hashes": [t["hash"] for t in combo],
+                        })
+
+        print(f"Matches (senders with combos totalling {target_eth} ETH ±{eth_tol}): {len(combos)}")
+
+        ts_tag = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        out_path = Path(f"eth_only_{args.start_date or args.date}_{ts_tag}.json").resolve()
+        json.dump({
+            "run_utc": datetime.now(timezone.utc).isoformat(),
+            "eth": float(target_eth),
+            "eth_tol": float(eth_tol),
+            "candidates": candidates,
+            "matches": combos,
+        }, out_path.open("w"), indent=2)
+        print(f"[✓] JSON results written to {out_path}")
+        return
+
+    if args.deposit_search:
+        print("\n[Deposit-search mode] Scanning ETH->WETH deposit transactions…")
+        txs = finder.get_contract_txs(finder.WETH_ADDR, start_block, end_block)
+        candidates = []
+        tgt_wei = int(target_eth * Decimal(1e18))
+        tol_wei = int(eth_tol * Decimal(1e18))
+        for t in txs:
+            val_wei = int(t["value"])
+            if abs(val_wei - tgt_wei) <= tol_wei:
+                candidates.append({
+                    "hash": t["hash"],
+                    "time": int(t["timeStamp"]),
+                    "time_iso": datetime.fromtimestamp(int(t["timeStamp"]), tz=timezone.utc).isoformat(),
+                    "from": t["from"].lower(),
+                    "to": t["to"].lower(),
+                    "eth": float(Decimal(val_wei) / Decimal(1e18)),
+                })
+
+        print(f"Found {len(candidates)} deposit tx with ETH value≈{target_eth} ETH.")
+
+        out_path = Path(f"deposit_search_{args.start_date or args.date}_{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}.json").resolve()
+        json.dump({
+            "run_utc": datetime.now(timezone.utc).isoformat(),
+            "eth": float(target_eth),
+            "eth_tol": float(eth_tol),
+            "candidates": candidates,
+        }, out_path.open("w"), indent=2)
+        print(f"[✓] JSON results written to {out_path}")
+        return
+
     for sym in token_list:
         addr = finder.TOKEN_REGISTRY.get(sym.upper())
         if not addr:
@@ -197,11 +287,9 @@ def main() -> None:
             frm = t.get("from", "").lower()
             to_addr = t.get("to", "").lower()
 
-            # Skip if MEV blocklisted
             if block_set and (frm in block_set or to_addr in block_set):
                 continue
 
-            # If require-router, ensure one side is router
             if args.require_router and not (finder.is_router(frm) or finder.is_router(to_addr)):
                 continue
 
@@ -222,17 +310,14 @@ def main() -> None:
 
     print(f"\nCandidates within {args.stable_amount} ±{args.stable_pct_tol}%: {len(candidates)}")
 
-    # Fetch ETH input for each candidate (might be slow: 1 req per candidate)
     for cand in candidates:
         val = finder.get_tx_eth_value(cand["hash"])
         if not val or val == 0:
-            # Identify router side
             router_addr = cand["from"] if finder.is_router(cand["from"]) else cand["to"]
             val = finder.get_weth_input_into(cand["hash"], router_addr)
         cand["eth_in"] = val
         time.sleep(finder.POLITE_SLEEP)
 
-    # Display
     for cand in candidates:
         ts_iso = datetime.fromtimestamp(cand["time"], tz=timezone.utc).isoformat()
         print(
@@ -257,9 +342,6 @@ def main() -> None:
         for h in hashes:
             print(f"  - {h}")
 
-    # ------------------------------------------------------------------
-    # MEV lookback analysis for match senders
-    # ------------------------------------------------------------------
     if matches and block_set:
         print("\nMEV lookback analysis (sender addresses):")
         for _, hash_list in matches:
@@ -279,9 +361,6 @@ def main() -> None:
                 status = " & ".join(status_parts) if status_parts else "clean"
                 print(f"- {h}  sender {sender[:6]}…{sender[-4:]} -> dest {dest[:6]}…{dest[-4:]} : {status}")
 
-    # ------------------------------------------------------------------
-    # Optional JSON output
-    # ------------------------------------------------------------------
     json_path: Path | None = None
 
     if args.json_file:
@@ -298,7 +377,6 @@ def main() -> None:
         }
         json_path = Path(args.json_file).expanduser().resolve()
     else:
-        # Auto-generate filename
         ts_str = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         json_path = Path(f"results_{args.date}_{ts_str}.json").resolve()
     if json_path:

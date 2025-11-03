@@ -8,7 +8,6 @@ def test_get_weth_input(monkeypatch):
     """Ensure get_weth_input sums WETH Transfer amounts from receipt logs."""
     txhash = "0xabc"
 
-    # Build fake receipt with two WETH Transfer events of 5 ETH each (10e18 Wei total).
     topic_transfer = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55aabbb12f123"
 
     def make_log(amount_eth: float):
