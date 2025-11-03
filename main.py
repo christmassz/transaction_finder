@@ -155,8 +155,6 @@ def main() -> None:
         basic_stats(args.date, token_list)
     else:
         print(f"Searching block range covering {args.start_date} to {args.end_date}\n")
-
-    # Candidate search
     lo = args.stable_amount * (1 - args.stable_pct_tol / 100)
     hi = args.stable_amount * (1 + args.stable_pct_tol / 100)
 
