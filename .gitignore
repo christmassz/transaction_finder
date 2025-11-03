@@ -1,3 +1,8 @@
 .env
 # Service-account credentials
 infra-falcon-468603-*.json
+# analysis output files
+results_*.json
+eth_only_*.json
+deposit_search_*.json
+bigquery_*.json

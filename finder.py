@@ -18,27 +18,19 @@ load_dotenv()
 API_KEY = os.getenv("ETHERSCAN_API_KEY", "")
 API = "https://api.etherscan.io/api"
 
-# Stablecoin addresses (mainnet)
 TOKEN_REGISTRY: dict[str, str] = {
-    "USDC": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",  # 6 decimals
-    "USDT": "0xdac17f958d2ee523a2206206994597c13d831ec7",  # 6 decimals
+    "USDC": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+    "USDT": "0xdac17f958d2ee523a2206206994597c13d831ec7",
 }
-
-# token decimals mapping (if not found, default 18)
 TOKEN_DECIMALS: dict[str, int] = {
     "USDC": 6,
     "USDT": 6,
 }
 
 WETH_ADDR = "0xC02aaA39B223FE8D0A0E5C4F27eAD9083C756Cc2".lower()
-TRANSFER_TOPIC = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55aabbb12"[:64]  # first 64? Actually full 0xddf252ad...
+TRANSFER_TOPIC = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55aabbb12"[:64]
 
-POLITE_SLEEP = 0.21  # seconds – keep within 5 req/sec Etherscan limit
-
-
-# ---------------------------------------------------------------------------
-# Time ↔ block helpers
-# ---------------------------------------------------------------------------
+POLITE_SLEEP = 0.21
 
 def ts(date_str: str, hhmmss: str = "00:00:00") -> int:
     """Return Unix timestamp for a given UTC date-string and optional time."""
@@ -93,21 +85,17 @@ def get_token_transfers(token_addr: str, start_block: int, end_block: int) -> Li
             timeout=60,
         )
 
-        # Etherscan returns status==0 and message=="No transactions found" when done.
         if chunk.get("status") == "0" and chunk.get("message") == "No transactions found":
             break
 
-        # Some non-success responses may still have status==1 but string error in "result".
         raw_result = chunk.get("result")
         if raw_result is None or isinstance(raw_result, str):
-            # Treat as empty page and continue / break.
             page_items = []
         else:
             page_items = raw_result
 
         results.extend(page_items)
 
-        # Less than the page-limit means we're done.
         if len(page_items) < 10000:
             break
 
@@ -116,9 +104,40 @@ def get_token_transfers(token_addr: str, start_block: int, end_block: int) -> Li
     return results
 
 
-# ---------------------------------------------------------------------------
-# ETH input helper (via proxy.eth_getTransactionByHash)
-# ---------------------------------------------------------------------------
+def get_contract_txs(contract_addr: str, start_block: int, end_block: int) -> List[Dict[str, Any]]:
+    """Return normal transactions (external + contract calls) involving *contract_addr* in the block range."""
+    page = 1
+    results: list[dict[str, Any]] = []
+    while True:
+        chunk = _call_etherscan(
+            {
+                "module": "account",
+                "action": "txlist",
+                "address": contract_addr,
+                "page": page,
+                "offset": 10000,
+                "startblock": start_block,
+                "endblock": end_block,
+                "sort": "asc",
+            },
+            timeout=60,
+        )
+
+        if chunk.get("status") == "0" and chunk.get("message") == "No transactions found":
+            break
+
+        raw = chunk.get("result")
+        if raw is None or isinstance(raw, str):
+            page_items = []
+        else:
+            page_items = raw
+
+        results.extend(page_items)
+        if len(page_items) < 10000:
+            break
+        page += 1
+        time.sleep(POLITE_SLEEP)
+    return results
 
 
 def wei_to_eth(wei_hex: str) -> float:
@@ -144,11 +163,6 @@ def get_tx_eth_value(txhash: str) -> float | None:
         return wei_to_eth(val_hex)
     except Exception:
         return None
-
-# ---------------------------------------------------------------------------
-# WETH input helper via receipts
-# ---------------------------------------------------------------------------
-
 
 def _topic_to_addr(topic_hex: str) -> str:
     """Extract the 20-byte address from a 32-byte topic hex string."""
@@ -183,7 +197,7 @@ def get_weth_input_into(txhash: str, router_addr: str) -> float | None:
         if len(topics) < 3:
             continue
         if not topics[0].lower().startswith("0xddf252ad"):
-            continue  # not Transfer
+            continue
 
         to_addr = _topic_to_addr(topics[2]).lower()
         if to_addr != router_addr:
